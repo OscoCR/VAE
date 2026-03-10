@@ -63,7 +63,7 @@ pip3 install -r requirements.txt
 To train or evaluate a model, use the following command:
 
 ```bash
-python main.py --config ./configs/vae_perceptual.yaml --model vqvae
+python main.py --config ./configs/vqvae.yaml --model vqvae
 ```
 
 ## 📚 Citation
@@ -78,6 +78,7 @@ If you use this repository or the dataset in your research, please cite:
   url={https://github.com/imagine-laboratory/VAE}
 }
 ````
+
 
 
 
