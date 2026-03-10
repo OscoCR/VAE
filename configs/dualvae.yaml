@@ -1,10 +1,14 @@
+model: "dualvae"
 batch_size: 8                # Batch size for training
 lr: 0.0001                     # Learning rate
 epochs: 250                   # Number of training epochs
 patience: 15                # Early stopping patience
-checkpoints: "./checkpoints/vqvae/"  # Checkpoint save path
-train_ratio: 0.8            # Train ratio
-beta_kl_loss: 0.001           # Beta KL Loss (used in Optuna)
+checkpoints: "./checkpoints/dualvae/"  # Checkpoint save path
+train_ratio: 0.8     
+val_ratio: 0.2       # Train ratio
+kl_beta: 0.001           # Beta KL Loss (used in Optuna)
+resize_img: 250
+augment: False
 device: "cuda"              # Device
 architecture: "cuda"        # Model architecture
 dataset_path: "../data/FULL_UNIFIED"  # Dataset path

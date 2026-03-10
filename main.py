@@ -6,6 +6,8 @@ if __name__ == "__main__":
         from experiments.train_vae_perceptual import train_vae as train
     elif args.model == "vqvae":
         from experiments.train_vqvae import train_vqvae as train
+    elif args.model == "dualvae":
+        from experiments.train_dualvae import train_dualvae as train
     else:
         from experiments.train_vae import train_vae as train
 

@@ -1,6 +1,6 @@
-from modules.embedding import VQEmbedding
-from modules.encoder import VQVAE_Encoder
-from modules.decoder import VQVAE_Decoder
+from .modules.embedding import VQEmbedding
+from .modules.encoder import VQVAE_Encoder
+from .modules.decoder import VQVAE_Decoder
 
 import torch.nn as nn
 

@@ -25,6 +25,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train VAE on Pineapple Dataset")
     parser.add_argument('--config', default="/home/rtxmsi1/Documents/VAE/configs/vae_perceptual.yaml", type=str)
     parser.add_argument('--model', default="vae_perceptual", type=str)
+    parser.add_argument('--path_test_ids', default="./test_ids.txt", type=str)
     args, unknown = parser.parse_known_args()
 
     cfg_args = load_config_as_args(args.config)

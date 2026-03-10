@@ -124,9 +124,9 @@ class CrossAttention(nn.Module):
     
 
 class AttentionBlock(nn.Module):
-    def __init__(self, channels):
+    def __init__(self, channels, num_groups=32):
         super().__init__()
-        self.groupnorm = nn.GroupNorm(32, channels)
+        self.groupnorm = nn.GroupNorm(num_groups, channels)
         self.attention = SelfAttention(1, channels)
     
     def forward(self, x):

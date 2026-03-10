@@ -17,8 +17,20 @@ import torchvision.utils as vutils
 
 def get_dataloaders(args):
     generator = torch.Generator().manual_seed(args.seed)
-    trainset = PineappleDataset(train=True, val=False, train_ratio=args.train_ratio, path=args.dataset, seed=args.seed)
-    valset = PineappleDataset(train=False, val=True, train_ratio=args.train_ratio, path=args.dataset, seed=args.seed)
+    #trainset = PineappleDataset(train=True, val=False, train_ratio=args.train_ratio, path=args.dataset, seed=args.seed)
+    #valset = PineappleDataset(train=False, val=True, train_ratio=args.train_ratio, path=args.dataset, seed=args.seed)
+    trainset = PineappleDataset(
+        path=args.dataset_path,
+        split='train', test_txt=args.path_test_ids, augment=False, seed=args.seed
+    )
+    valset = PineappleDataset(
+        path=args.dataset_path,
+        split='val', test_txt=args.path_test_ids, augment=False, seed=args.seed
+    )
+    testset = PineappleDataset(
+        path=args.dataset_path,
+        split='test', test_txt=args.path_test_ids, augment=False, seed=args.seed
+    )
 
     trainloader = DataLoader(
         trainset,

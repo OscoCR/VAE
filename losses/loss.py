@@ -156,6 +156,16 @@ def vae_loss(
     }
 
     return loss_dict
+def dualvae_loss(recon_x, x, vq_loss, kl_beta, mean, logvar, reduction: str = 'sum'):
+    #recon_loss = F.mse_loss(recon_x, x)
+    b_size = recon_x.size(0)
+    loss_fn = nn.MSELoss(reduction=reduction)
+    recon_loss = loss_fn(recon_x, x)
+    kl_loss = kl_divergence_loss(mean, logvar, reduction=reduction)
+
+    total_loss = recon_loss + vq_loss + kl_beta * kl_loss
+
+    return total_loss/b_size, recon_loss/b_size, vq_loss/b_size, kl_loss/b_size
 
 def vae_perceptual_loss(
     reconstructed: torch.Tensor,

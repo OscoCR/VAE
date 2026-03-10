@@ -1,5 +1,5 @@
 import os
-import torchs
+import torch
 import wandb
 import numpy as np
 
