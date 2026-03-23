@@ -26,6 +26,8 @@ def parse_args():
     parser.add_argument('--config', default="/home/rtxmsi1/Documents/VAE/configs/vae_perceptual.yaml", type=str)
     parser.add_argument('--model', default="vae_perceptual", type=str)
     parser.add_argument('--path_test_ids', default="./test_ids.txt", type=str)
+    parser.add_argument('--checkpoint_path_test', default="./checkpoints/VAE/betaKL@0.001/best.pt", type=str)
+    parser.add_argument('--output_dir_test', default="./inferences/vae/test", type=str)
     args, unknown = parser.parse_known_args()
 
     cfg_args = load_config_as_args(args.config)

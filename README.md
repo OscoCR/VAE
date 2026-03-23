@@ -66,6 +66,12 @@ To train or evaluate a model, use the following command:
 python main.py --config ./configs/vqvae.yaml --model vqvae
 ```
 
+To generate images with the trained model:
+
+```bash
+python generate_test_inferences.py --path_test_ids ./test_ids.txt --checkpoint_path_test checkpoints/VAE/betaKL@0.001/best.pt --output_dir_test inferences/vae/test --config configs/vae.yaml --model vae
+```
+
 ## 📚 Citation
 
 If you use this repository or the dataset in your research, please cite:

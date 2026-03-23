@@ -44,7 +44,7 @@ class DUALVAE(nn.Module):
         x *= 0.18215
         
         return x, mean, log_variance
-    def forward(self, x):
+    def forward(self, x, ablation_mode=-1):
         # The encoder expects noise with shape (Batch_Size, 4, Height/8, Width/8).
         batch_size, _, height, width = x.shape
         noise = torch.randn((batch_size, 4, height // 8, width // 8), device=x.device)
@@ -57,6 +57,14 @@ class DUALVAE(nn.Module):
         z_e_vanilla = self.vanilla_VAE_bottle_neck(z_e) # (Batch_Size, 8, Height / 8, Width / 8)
         z_vanilla_post, mean, log_variance = self.forward_vanilla_z(z_e_vanilla, noise) # (Batch_Size, 4, Height / 8, Width / 8)
         z_vanilla_post/= 0.18215 #only for the vanilla VAE branch
+
+        # --- Ablation Logic ---
+        if ablation_mode == 0:
+            # VQ only: Kill Vanilla
+            z_vanilla_post = z_vanilla_post * 0
+        elif ablation_mode == 1:
+            # Vanilla only: Kill VQ
+            z_vq = z_vq * 0
 
         # simple residual addition
         z_combined = z_vq + z_vanilla_post

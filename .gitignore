@@ -42,7 +42,9 @@ checkpoints/
 wandb/
 output/
 splits/
-
+inferences/
 .env
 
 *test_ids.txt
+copy_images.py
+compute_metrics.py
