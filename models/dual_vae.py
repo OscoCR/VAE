@@ -84,3 +84,26 @@ class DUALVAE(nn.Module):
             "log_variance": log_variance
         }
         return x_recon, vq_related_losses, vanilla_vae_related_losses
+    
+    def encode_for_diffusion(self, x, noise=None):
+        if noise is None:
+            batch_size, _, height, width = x.shape
+            noise = torch.randn((batch_size, 4, height // 8, width // 8), device=x.device)
+            
+        z_e = self.encoder(x) 
+        
+        # 1. VQ Branch
+        z_e_vq = self.bottle_neck_VQ(z_e) 
+        z_vq, _, _, _, _ = self.vq_layer(z_e_vq)
+        z_vq = self.vq_post_bottleneck(z_vq) 
+        
+        # 2. Vanilla Branch
+        z_e_vanilla = self.vanilla_VAE_bottle_neck(z_e) 
+        z_vanilla_post, mean, log_variance = self.forward_vanilla_z(z_e_vanilla, noise) 
+        z_vanilla_post /= 0.18215 
+
+        # 3. Combine and Attention
+        z_combined = z_vq + z_vanilla_post
+        z_combined = self.attention(z_combined)
+        
+        return z_combined
