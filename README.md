@@ -32,6 +32,8 @@
 
 The integration of aerial drone imagery into precision agriculture enables large-scale, high-resolution monitoring of crop conditions but also introduces challenges due to the dimensionality and variability of visual data. Variational Autoencoders (VAEs) and their variants provide a promising framework for learning compact latent representations that preserve meaningful crop features while reducing computational complexity. In this work, we investigate the suitability of VAE-based architectures for analyzing aerial imagery of pineapple fields. Using a dataset of approximately $5000$ drone-acquired images, we evaluate reconstruction fidelity, robustness to noise, and the structure of latent spaces across different VAE variants, including VQ-VAE and $\beta$-VAE. Our analysis demonstrates that VAEs not only capture fine-grained plant features but also enable latent-space clustering that separates foreground (pineapple plants) from background (soil, vegetation, and other elements). These findings highlight the potential of VAE-derived representations for supporting downstream tasks such as plant counting, yield estimation, and stress detection. By releasing both dataset and code at [https://github.com/imagine-laboratory/VAE](https://github.com/imagine-laboratory/VAE), we aim to establish a reproducible benchmark for generative models in agricultural monitoring, advancing data-driven approaches for sustainable pineapple cultivation.
 
+> **Keywords**: Variational Autoencoder, Vector Quantized Variational Autoencoder, Agriculture, Aerial Drones Imagery.
+
 ## 📝 Overview
 
 This repository provides implementations of Autoencoders and Variational Autoencoder (VAE) variants designed for learning compact, informative representations from aerial drone imagery of agricultural fields. These models are intended to support key tasks in **precision agriculture**, including **crop monitoring**, **yield estimation**, and **field analysis**.
@@ -77,14 +79,12 @@ python generate_test_inferences.py --path_test_ids ./test_ids.txt --checkpoint_p
 If you use this repository or the dataset in your research, please cite:
 
 ```bibtex
-@article{xie2025learningVAEagriculture,
-  title={Learning Compact Representations of Agricultural Fields: A Study of Variational Autoencoder Variants for Aerial Drone Imagery},
+@inproceedings{xie2025learning,
+  title={Learning Compact Representations of Agricultural Fields: A Study of Variational Autoencoders Variants for Aerial Drone Imagery},
   author={Xie-Li, Danny and Gonzalez-Hernandez, Manfred and Meden, Blaz and Fallas-Moya, Fabian},
+  booktitle={2025 IEEE 7th International Conference on BioInspired Processing (BIP)},
+  pages={1--7},
   year={2025},
-  url={https://github.com/imagine-laboratory/VAE}
+  organization={IEEE}
 }
 ````
-
-
-
-
