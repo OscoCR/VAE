@@ -36,4 +36,4 @@ persistent_workers: True
 
 # -------------------- WandB --------------------
 wandb_project: "dual_vae"
-wandb_entity: "imagine-laboratory-conare"
+wandb_entity: "osco-itcr"
