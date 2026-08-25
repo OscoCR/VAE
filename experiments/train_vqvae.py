@@ -109,7 +109,7 @@ def log_metrics(epoch, train_metrics, val_metrics, test_image, model, device):
         test_image = test_image.unsqueeze(0).to(device)
         recon_img, _, _, _ = model(test_image)
     wandb.log({
-        "Sample Reconstructed": wandb.Image(recon_img.clamp(0, 1)),
+        "Sample Reconstructed": wandb.Image(recon_img.squeeze(0).clamp(0, 1)),
         "Train/Total Loss": train_metrics["loss"],
         "Train/Reconstruction Loss": train_metrics["recon_loss"],
         "Train/VQ Loss": train_metrics["vq_loss"],
