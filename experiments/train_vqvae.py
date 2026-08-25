@@ -12,18 +12,22 @@ from models.vqvae import VQVAE
 from losses.loss import vqvae_loss
 
 def prepare_data(args):
-    trainset = PineappleDataset(
-        path=args.dataset_path,
-        split='train', test_txt=args.path_test_ids, augment=False, seed=args.seed
-    )
-    valset = PineappleDataset(
-        path=args.dataset_path,
-        split='val', test_txt=args.path_test_ids, augment=False, seed=args.seed
-    )
-    testset = PineappleDataset(
-        path=args.dataset_path,
-        split='test', test_txt=args.path_test_ids, augment=False, seed=args.seed
-    )
+    if args.dataset_path.endswith('.h5'):
+        # dataset_path points directly at the packed HDF5 file -- splits are
+        # precomputed inside it (see PineappleH5Dataset), no test_txt needed
+        from data.datasets import PineappleH5Dataset
+        crop_size = getattr(args, 'resize_img', 256)
+        trainset = PineappleH5Dataset(args.dataset_path, split='train', crop_size=crop_size, augment=False, seed=args.seed)
+        valset = PineappleH5Dataset(args.dataset_path, split='val', crop_size=crop_size, augment=False, seed=args.seed)
+    else:
+        trainset = PineappleDataset(
+            path=args.dataset_path,
+            split='train', test_txt=args.path_test_ids, augment=False, seed=args.seed
+        )
+        valset = PineappleDataset(
+            path=args.dataset_path,
+            split='val', test_txt=args.path_test_ids, augment=False, seed=args.seed
+        )
     trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
     valloader = DataLoader(valset, batch_size=args.batch_size, shuffle=False, num_workers=2)
     return trainset, valset, trainloader, valloader
