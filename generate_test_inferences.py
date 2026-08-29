@@ -6,6 +6,7 @@ import torchvision.utils as vutils
 
 from tools.arguments import parse_args
 from data.datasets import PineappleDataset
+from losses.loss import psnr, ssim
 
 # Import your models
 from models.vae import VAE
@@ -14,17 +15,26 @@ from models.dual_vae import DUALVAE
 
 def prepare_test_data(args):
     """Initializes the test dataset and dataloader."""
-    testset = PineappleDataset(
-        path=args.dataset_path,
-        split='test', 
-        test_txt=args.path_test_ids, 
-        augment=False, 
-        seed=args.seed
-    )
+    if args.dataset_path.endswith('.h5'):
+        # dataset_path points directly at the packed HDF5 file -- splits are
+        # precomputed inside it (see PineappleH5Dataset), no path_test_ids needed
+        from data.datasets import PineappleH5Dataset
+        crop_size = getattr(args, 'resize_img', 256)
+        testset = PineappleH5Dataset(
+            args.dataset_path, split='test', crop_size=crop_size, augment=False, seed=args.seed
+        )
+    else:
+        testset = PineappleDataset(
+            path=args.dataset_path,
+            split='test',
+            test_txt=args.path_test_ids,
+            augment=False,
+            seed=args.seed
+        )
     testloader = DataLoader(
-        testset, 
-        batch_size=args.batch_size, 
-        shuffle=False, 
+        testset,
+        batch_size=args.batch_size,
+        shuffle=False,
         num_workers=2
     )
     return testloader
@@ -77,11 +87,14 @@ def generate_inferences(args):
     print(f"Inferences will be saved to: {args.output_dir_test}")
 
     # 3. Inference Loop
+    total_psnr, total_ssim, n_images = 0.0, 0.0, 0
+    has_filenames = hasattr(testset, "images")
+
     with torch.no_grad():
         for batch in tqdm(testloader, desc="Generating Inferences"):
             images = batch["image"].to(device)
             indices = batch["idx"] # Grab the original indices from the batch
-            
+
             # Forward pass depends on what the model returns
             if args.model == "vae":
                 recon, _, _ = model(images)
@@ -93,24 +106,41 @@ def generate_inferences(args):
             # 4. Save the reconstructed images
             # Clamp to [0, 1] just in case to prevent visual artifacts
             recon = recon.clamp(0, 1)
-            
+
+            # Metrics are computed per-image so a batch with a mix of images
+            # doesn't average away a single bad reconstruction
             for i in range(images.size(0)):
+                total_psnr += psnr(recon[i], images[i])
+                total_ssim += ssim(recon[i], images[i])
+                n_images += 1
+
                 # 1. Get the dataset index for this specific image in the batch
                 dataset_idx = indices[i].item()
-                
-                # 2. Look up the original file path in the dataset's 'images' list
-                original_path = testset.images[dataset_idx]
-                
-                # 3. Extract just the filename with its original extension
-                filename = os.path.basename(original_path)
-                
-                # 4. Create the final save path
+
+                if has_filenames:
+                    # 2. Look up the original file path in the dataset's 'images' list
+                    original_path = testset.images[dataset_idx]
+                    filename = os.path.basename(original_path)
+                else:
+                    # PineappleH5Dataset has no per-file paths (HDF5 rows, not
+                    # files on disk) -- name by dataset index instead
+                    filename = f"{dataset_idx:05d}.png"
+
                 save_path = os.path.join(args.output_dir_test, filename)
-                
-                # Save single image
                 vutils.save_image(recon[i], save_path)
 
-    print("Inference complete!")
+    avg_psnr = total_psnr / n_images
+    avg_ssim = total_ssim / n_images
+    print(f"Inference complete! {n_images} images. Test PSNR={avg_psnr:.2f} dB, Test SSIM={avg_ssim:.4f}")
+
+    metrics_path = os.path.join(args.output_dir_test, "test_metrics.txt")
+    with open(metrics_path, "w") as f:
+        f.write(f"model={args.model}\n")
+        f.write(f"checkpoint={args.checkpoint_path_test}\n")
+        f.write(f"n_images={n_images}\n")
+        f.write(f"psnr={avg_psnr:.4f}\n")
+        f.write(f"ssim={avg_ssim:.4f}\n")
+    print(f"Metrics saved to: {metrics_path}")
 
 if __name__ == "__main__":
     args = parse_args()

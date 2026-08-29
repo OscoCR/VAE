@@ -182,6 +182,13 @@ class PineappleH5Dataset(Dataset):
         left = random.randint(0, w - c)
         return image[top:top + c, left:left + c]
 
+    def _center_crop(self, image):
+        h, w, _ = image.shape
+        c = self.crop_size
+        top = (h - c) // 2
+        left = (w - c) // 2
+        return image[top:top + c, left:left + c]
+
     def _dihedral(self, image):
         # flips x 90-degree rotations: nadir aerial imagery has no canonical "up"
         image = np.rot90(image, k=random.randint(0, 3))
@@ -192,7 +199,9 @@ class PineappleH5Dataset(Dataset):
     def transform_image(self, real_idx):
         image = self._file()["rgb"][real_idx]  # (544, 960, 3) uint8, RGB
 
-        image = self._random_crop(image)
+        # Random crop is data augmentation and only makes sense for training;
+        # val/test must see the same crop every run to be reproducible/comparable
+        image = self._random_crop(image) if self.split == 'train' else self._center_crop(image)
         if self.augment:
             image = self._dihedral(image)
 
