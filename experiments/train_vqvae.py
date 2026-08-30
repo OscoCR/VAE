@@ -123,7 +123,7 @@ def log_metrics(epoch, train_metrics, val_metrics, test_image, model, device):
     }, step=epoch)
 
 
-def save_checkpoint(model, epoch, best_loss, current_loss, patience_counter, checkpoint_dir):
+def save_checkpoint(model, epoch, best_loss, current_loss, patience_counter, checkpoint_dir, best_ckpt_path=None):
     if current_loss < best_loss:
         best_loss = current_loss
         patience_counter = 0
@@ -131,10 +131,13 @@ def save_checkpoint(model, epoch, best_loss, current_loss, patience_counter, che
         path = os.path.join(checkpoint_dir, filename)
         torch.save(model.state_dict(), path)
         print(f"Checkpoint saved: {filename}")
+        if best_ckpt_path is not None and os.path.exists(best_ckpt_path):
+            os.remove(best_ckpt_path)
+        best_ckpt_path = path
     else:
         patience_counter += 1
         print(f"No improvement for {patience_counter} epoch(s).")
-    return best_loss, patience_counter
+    return best_loss, patience_counter, best_ckpt_path
 
 
 def train_vqvae(args):
@@ -151,6 +154,7 @@ def train_vqvae(args):
 
     best_loss = float('inf')
     patience_counter = 0
+    best_ckpt_path = None
 
     for epoch in range(args.epochs):
         train_metrics = train_one_epoch(model, trainloader, optimizer, args.device, epoch, args.epochs)
@@ -163,7 +167,7 @@ def train_vqvae(args):
         log_metrics(epoch, train_metrics, val_metrics, test_image, model, args.device)
 
         # Save checkpoint if improved
-        best_loss, patience_counter = save_checkpoint(model, epoch, best_loss, train_metrics["loss"], patience_counter, checkpoint_dir)
+        best_loss, patience_counter, best_ckpt_path = save_checkpoint(model, epoch, best_loss, train_metrics["loss"], patience_counter, checkpoint_dir, best_ckpt_path)
 
         # Early stopping
         if patience_counter >= args.patience:
