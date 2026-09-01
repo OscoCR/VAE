@@ -120,14 +120,14 @@ def generate_inferences(args):
                 if has_filenames:
                     # 2. Look up the original file path in the dataset's 'images' list
                     original_path = testset.images[dataset_idx]
-                    filename = os.path.basename(original_path)
+                    stem = os.path.splitext(os.path.basename(original_path))[0]
                 else:
                     # PineappleH5Dataset has no per-file paths (HDF5 rows, not
                     # files on disk) -- name by dataset index instead
-                    filename = f"{dataset_idx:05d}.png"
+                    stem = f"{dataset_idx:05d}"
 
-                save_path = os.path.join(args.output_dir_test, filename)
-                vutils.save_image(recon[i], save_path)
+                vutils.save_image(recon[i], os.path.join(args.output_dir_test, f"{stem}_recon.png"))
+                vutils.save_image(images[i], os.path.join(args.output_dir_test, f"{stem}_original.png"))
 
     avg_psnr = total_psnr / n_images
     avg_ssim = total_ssim / n_images
