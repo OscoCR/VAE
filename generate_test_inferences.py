@@ -101,7 +101,7 @@ def generate_inferences(args):
             elif args.model == "vqvae":
                 recon, _, _, _ = model(images)
             elif args.model == "dualvae":
-                recon, _, _ = model(images, ablation_mode=1) # Use the same ablation_mode you trained with if applicable
+                recon, _, _ = model(images, ablation_mode=-1) # -1 = both branches active, matches train_dualvae.py's model(images) call
 
             # 4. Save the reconstructed images
             # Clamp to [0, 1] just in case to prevent visual artifacts
