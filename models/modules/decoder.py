@@ -6,7 +6,7 @@ from .attention import AttentionBlock
 from .residual import ResidualBlock
 
 class VAE_Decoder(nn.Sequential):
-    def __init__(self):
+    def __init__(self, out_channels=3):
         super().__init__(
             # (Batch_Size, 4, Height / 8, Width / 8) -> (Batch_Size, 4, Height / 8, Width / 8)
             nn.Conv2d(4, 4, kernel_size=1, padding=0),
@@ -68,20 +68,20 @@ class VAE_Decoder(nn.Sequential):
             # (Batch_Size, 128, Height, Width) -> (Batch_Size, 128, Height, Width)
             nn.SiLU(), 
             
-            # (Batch_Size, 128, Height, Width) -> (Batch_Size, 3, Height, Width)
-            nn.Conv2d(128, 3, kernel_size=3, padding=1), 
+            # (Batch_Size, 128, Height, Width) -> (Batch_Size, out_channels, Height, Width)
+            nn.Conv2d(128, out_channels, kernel_size=3, padding=1),
         )
 
     def forward(self, x):
         # x: (Batch_Size, 4, Height / 8, Width / 8)
-        
+
         # Remove the scaling added by the Encoder.
         x /= 0.18215
 
         for module in self:
             x = module(x)
 
-        # (Batch_Size, 3, Height, Width)
+        # (Batch_Size, out_channels, Height, Width)
         return x
 
 class VQVAE_Decoder(nn.Sequential):

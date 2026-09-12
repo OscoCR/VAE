@@ -21,7 +21,8 @@ def prepare_test_data(args):
         from data.datasets import PineappleH5Dataset
         crop_size = getattr(args, 'resize_img', 256)
         testset = PineappleH5Dataset(
-            args.dataset_path, split='test', crop_size=crop_size, augment=False, seed=args.seed
+            args.dataset_path, split='test', crop_size=crop_size, augment=False, seed=args.seed,
+            in_channels=getattr(args, 'in_channels', 3), out_channels=getattr(args, 'out_channels', 3)
         )
     else:
         testset = PineappleDataset(
@@ -42,7 +43,10 @@ def prepare_test_data(args):
 def load_model(args, device):
     """Instantiates the correct model and loads the checkpoint."""
     if args.model == "vae":
-        model = VAE()
+        model = VAE(
+            in_channels=getattr(args, 'in_channels', 3),
+            out_channels=getattr(args, 'out_channels', 3),
+        )
     elif args.model == "vqvae":
         model = VQVAE(
             commitment_cost=args.commitment_cost,
@@ -87,12 +91,21 @@ def generate_inferences(args):
     print(f"Inferences will be saved to: {args.output_dir_test}")
 
     # 3. Inference Loop
+    in_channels = getattr(args, 'in_channels', 3)
+    out_channels = getattr(args, 'out_channels', 3)
+    # Based on out_channels (what recon is graded against), not in_channels --
+    # a model fed RGB+Depth but trained to output only RGB has no depth to grade.
+    has_depth = out_channels == 4  # RGB+Depth: report/save each modality separately,
+                                    # never mixed into one metric (see generate_test_inferences.py review)
+
     total_psnr, total_ssim, n_images = 0.0, 0.0, 0
+    total_psnr_depth, total_ssim_depth = 0.0, 0.0
     has_filenames = hasattr(testset, "images")
 
     with torch.no_grad():
         for batch in tqdm(testloader, desc="Generating Inferences"):
-            images = batch["image"].to(device)
+            images = batch["image"].to(device)          # encoder input
+            targets = batch["image_target"].to(device)  # what recon is graded against
             indices = batch["idx"] # Grab the original indices from the batch
 
             # Forward pass depends on what the model returns
@@ -107,11 +120,18 @@ def generate_inferences(args):
             # Clamp to [0, 1] just in case to prevent visual artifacts
             recon = recon.clamp(0, 1)
 
+            recon_rgb, img_rgb = recon[:, :3], targets[:, :3]
+            if has_depth:
+                recon_depth, img_depth = recon[:, 3:4], targets[:, 3:4]
+
             # Metrics are computed per-image so a batch with a mix of images
             # doesn't average away a single bad reconstruction
             for i in range(images.size(0)):
-                total_psnr += psnr(recon[i], images[i])
-                total_ssim += ssim(recon[i], images[i])
+                total_psnr += psnr(recon_rgb[i], img_rgb[i])
+                total_ssim += ssim(recon_rgb[i], img_rgb[i])
+                if has_depth:
+                    total_psnr_depth += psnr(recon_depth[i], img_depth[i])
+                    total_ssim_depth += ssim(recon_depth[i], img_depth[i])
                 n_images += 1
 
                 # 1. Get the dataset index for this specific image in the batch
@@ -126,20 +146,31 @@ def generate_inferences(args):
                     # files on disk) -- name by dataset index instead
                     stem = f"{dataset_idx:05d}"
 
-                vutils.save_image(recon[i], os.path.join(args.output_dir_test, f"{stem}_recon.png"))
-                vutils.save_image(images[i], os.path.join(args.output_dir_test, f"{stem}_original.png"))
+                vutils.save_image(recon_rgb[i], os.path.join(args.output_dir_test, f"{stem}_recon.png"))
+                vutils.save_image(img_rgb[i], os.path.join(args.output_dir_test, f"{stem}_original.png"))
+                if has_depth:
+                    vutils.save_image(recon_depth[i], os.path.join(args.output_dir_test, f"{stem}_recon_depth.png"))
+                    vutils.save_image(img_depth[i], os.path.join(args.output_dir_test, f"{stem}_original_depth.png"))
 
     avg_psnr = total_psnr / n_images
     avg_ssim = total_ssim / n_images
-    print(f"Inference complete! {n_images} images. Test PSNR={avg_psnr:.2f} dB, Test SSIM={avg_ssim:.4f}")
+    print(f"Inference complete! {n_images} images. Test PSNR(RGB)={avg_psnr:.2f} dB, Test SSIM(RGB)={avg_ssim:.4f}")
 
     metrics_path = os.path.join(args.output_dir_test, "test_metrics.txt")
     with open(metrics_path, "w") as f:
         f.write(f"model={args.model}\n")
         f.write(f"checkpoint={args.checkpoint_path_test}\n")
+        f.write(f"in_channels={in_channels}\n")
+        f.write(f"out_channels={out_channels}\n")
         f.write(f"n_images={n_images}\n")
         f.write(f"psnr={avg_psnr:.4f}\n")
         f.write(f"ssim={avg_ssim:.4f}\n")
+        if has_depth:
+            avg_psnr_depth = total_psnr_depth / n_images
+            avg_ssim_depth = total_ssim_depth / n_images
+            f.write(f"psnr_depth={avg_psnr_depth:.4f}\n")
+            f.write(f"ssim_depth={avg_ssim_depth:.4f}\n")
+            print(f"Test PSNR(Depth)={avg_psnr_depth:.2f} dB, Test SSIM(Depth)={avg_ssim_depth:.4f}")
     print(f"Metrics saved to: {metrics_path}")
 
 if __name__ == "__main__":

@@ -142,7 +142,7 @@ class PineappleDataset(Dataset):
 
 class PineappleH5Dataset(Dataset):
     """
-    Loads RGB frames from the pre-built `pineapple_960x544.h5` file.
+    Loads RGB (or RGB+Depth) frames from the pre-built `pineapple_960x544.h5` file.
 
     Splits are read directly from the file's own `split` dataset and are never
     recomputed here: the frames are contiguous drone video, so a random split
@@ -150,17 +150,29 @@ class PineappleH5Dataset(Dataset):
     'drop' belong to no split and are excluded automatically since they never
     match any requested split.
 
-    Only RGB is used (depth/boxes are ignored -- not needed for VAE training).
+    With in_channels=3 (default), only RGB is used (depth/boxes are ignored).
+    With in_channels=4, the file's monocular `depth` map is concatenated as a
+    4th channel -- note it's per-image normalised (0-255) and NOT comparable
+    across images (see the file's own `depth_semantics` attribute).
+
+    in_channels (what the encoder sees) and out_channels (what __getitem__'s
+    'image_target' asks the decoder to reconstruct) are independent, so
+    asymmetric setups work too -- e.g. in_channels=4, out_channels=3 trains a
+    VAE that uses depth as an extra input cue but only reconstructs RGB.
     """
 
-    def __init__(self, h5_path, split='train', crop_size=256, augment=False, seed=42):
+    def __init__(self, h5_path, split='train', crop_size=256, augment=False, seed=42, in_channels=3, out_channels=3):
         assert split in ['train', 'val', 'test'], "split must be 'train', 'val', or 'test'"
+        assert in_channels in (3, 4), "in_channels must be 3 (RGB) or 4 (RGB+Depth)"
+        assert out_channels in (3, 4), "out_channels must be 3 (RGB) or 4 (RGB+Depth)"
 
         self.h5_path = h5_path
         self.split = split
         self.crop_size = crop_size
         self.augment = augment and (split == 'train')  # only augment training data
         self.seed = seed
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self._h5 = None  # opened lazily: h5py.File handles don't survive DataLoader worker forking
 
         with h5py.File(h5_path, 'r') as f:
@@ -175,19 +187,16 @@ class PineappleH5Dataset(Dataset):
     def __len__(self):
         return len(self.indices)
 
-    def _random_crop(self, image):
-        h, w, _ = image.shape
+    def _crop_box(self, h, w):
         c = self.crop_size
-        top = random.randint(0, h - c)
-        left = random.randint(0, w - c)
-        return image[top:top + c, left:left + c]
-
-    def _center_crop(self, image):
-        h, w, _ = image.shape
-        c = self.crop_size
-        top = (h - c) // 2
-        left = (w - c) // 2
-        return image[top:top + c, left:left + c]
+        if self.split == 'train':
+            top = random.randint(0, h - c)
+            left = random.randint(0, w - c)
+        else:
+            # val/test must see the same crop every run to be reproducible/comparable
+            top = (h - c) // 2
+            left = (w - c) // 2
+        return top, left
 
     def _dihedral(self, image):
         # flips x 90-degree rotations: nadir aerial imagery has no canonical "up"
@@ -197,19 +206,34 @@ class PineappleH5Dataset(Dataset):
         return image
 
     def transform_image(self, real_idx):
-        image = self._file()["rgb"][real_idx]  # (544, 960, 3) uint8, RGB
+        rgb = self._file()["rgb"][real_idx]  # (544, 960, 3) uint8, RGB
+        c = self.crop_size
+        top, left = self._crop_box(*rgb.shape[:2])
+        rgb = rgb[top:top + c, left:left + c]
 
-        # Random crop is data augmentation and only makes sense for training;
-        # val/test must see the same crop every run to be reproducible/comparable
-        image = self._random_crop(image) if self.split == 'train' else self._center_crop(image)
+        # Build the widest array either side needs (up to RGB+Depth), then slice
+        # each side down to its own channel count below -- this guarantees the
+        # input and the target always come from the same crop/flip, even when
+        # they don't have the same number of channels.
+        need_depth = 4 in (self.in_channels, self.out_channels)
+        if need_depth:
+            depth = self._file()["depth"][real_idx]  # (544, 960) uint8, per-image normalised
+            depth = depth[top:top + c, left:left + c]  # same crop box as rgb
+            full = np.concatenate([rgb, depth[:, :, None]], axis=2)  # (crop, crop, 4)
+        else:
+            full = rgb
+
         if self.augment:
-            image = self._dihedral(image)
+            full = self._dihedral(full)
 
-        image = image.astype(np.float32) / 255.0
-        image = np.ascontiguousarray(np.transpose(image, (2, 0, 1)))  # CHW
-        return image
+        full = full.astype(np.float32) / 255.0
+        full = np.ascontiguousarray(np.transpose(full, (2, 0, 1)))  # CHW, up to 4 channels
+
+        image_in = full[:self.in_channels]
+        image_target = full[:self.out_channels]
+        return image_in, image_target
 
     def __getitem__(self, idx):
         real_idx = int(self.indices[idx])
-        image = self.transform_image(real_idx)
-        return {'image': image, 'idx': idx}
+        image_in, image_target = self.transform_image(real_idx)
+        return {'image': image_in, 'image_target': image_target, 'idx': idx}

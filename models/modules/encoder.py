@@ -7,10 +7,10 @@ from .attention import AttentionBlock
 
 class VAE_Encoder(nn.Sequential):
 
-    def __init__(self):
+    def __init__(self, in_channels=3):
         super().__init__(
             # (Batch_Size, Channel, Height, Width) -> (Batch_Size, 128, Height, Width)
-            nn.Conv2d(3, 128, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels, 128, kernel_size=3, padding=1),
             
             # (Batch_Size, 128, Height, Width) -> (Batch_Size, 128, Height, Width)
             ResidualBlock(128, 128),

@@ -5,10 +5,10 @@ import torch.nn as nn
 import torch
 
 class VAE(nn.Module):
-    def __init__(self):
+    def __init__(self, in_channels=3, out_channels=3):
         super().__init__()
-        self.encoder = VAE_Encoder()
-        self.decoder = VAE_Decoder()
+        self.encoder = VAE_Encoder(in_channels=in_channels)
+        self.decoder = VAE_Decoder(out_channels=out_channels)
     
     def forward(self, x):
         batch_size, _, height, width = x.shape
