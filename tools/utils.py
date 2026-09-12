@@ -19,9 +19,10 @@ def setup_wandb(args):
     model_name = getattr(args, 'model', 'model')
     kl_beta = getattr(args, 'kl_beta', None)
     in_channels = getattr(args, 'in_channels', 3)
+    out_channels = getattr(args, 'out_channels', 3)
     run_name = f"{model_name}_klbeta{kl_beta}" if kl_beta is not None else model_name
-    if in_channels != 3:
-        run_name += f"_in{in_channels}ch"
+    if in_channels != 3 or out_channels != 3:
+        run_name += f"_in{in_channels}out{out_channels}"
 
     run = wandb.init(
         entity=args.wandb_entity,
