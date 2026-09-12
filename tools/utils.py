@@ -12,10 +12,21 @@ def setup_wandb(args):
 
     api_key = os.getenv("WANDB_API_KEY")
     wandb.login(key=api_key)
-    
+
+    # Without an explicit name, wandb assigns a random one (e.g. "playful-sunrise-3"),
+    # making runs indistinguishable on the dashboard without opening each one's config.
+    # Encode the variables that actually change between experiments (e.g. RGB vs RGB+Depth).
+    model_name = getattr(args, 'model', 'model')
+    kl_beta = getattr(args, 'kl_beta', None)
+    in_channels = getattr(args, 'in_channels', 3)
+    run_name = f"{model_name}_klbeta{kl_beta}" if kl_beta is not None else model_name
+    if in_channels != 3:
+        run_name += f"_in{in_channels}ch"
+
     run = wandb.init(
         entity=args.wandb_entity,
         project=args.wandb_project,
+        name=run_name,
         config=vars(args),  # Include all args dynamically
     )
     return run
