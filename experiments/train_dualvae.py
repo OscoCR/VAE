@@ -227,5 +227,12 @@ def train_dualvae(args):
             print("Early stopping triggered.")
             break
 
+    # Always keep the literal final-epoch weights too, alongside the best-by-loss
+    # one -- some prefer this for generative pipelines downstream, since a lower
+    # validation loss doesn't always mean better results at every use case.
+    last_ckpt_path = os.path.join(checkpoint_dir, "last.pt")
+    torch.save(model.state_dict(), last_ckpt_path)
+    print(f"Final model saved to {last_ckpt_path}")
+
     wandb.finish()
     return model
