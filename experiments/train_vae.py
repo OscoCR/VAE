@@ -10,6 +10,7 @@ from tools.utils import *
 from data.datasets import PineappleDataset
 from models.vae import VAE
 from losses.loss import vae_loss, psnr, ssim
+from models.modules.discriminator import Discriminator
 
 import torchvision.utils as vutils
 
@@ -66,17 +67,37 @@ def setup_model_and_optimizer(args):
         in_channels=getattr(args, 'in_channels', 3),
         out_channels=getattr(args, 'out_channels', 3),
     ).to(args.device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    return model, optimizer
 
-def train_step(model, dataloader, optimizer, device, beta_kl_loss):
+    pretrained_path = getattr(args, 'pretrained_vae_checkpoint', None)
+    if pretrained_path:
+        checkpoint = torch.load(pretrained_path, map_location=args.device)
+        result = model.load_state_dict(checkpoint, strict=False)
+        print(f"Loaded pretrained VAE from {pretrained_path}")
+        print(f"Missing keys (new, random-init): {result.missing_keys}")
+        print(f"Unexpected keys (ignored, old architecture): {result.unexpected_keys}")
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+    discriminator = Discriminator(
+        in_channels=getattr(args, 'out_channels', 3),
+        hidden_channels=64,
+    ).to(args.device)
+    optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=args.lr)
+
+    return model, optimizer, discriminator, optimizer_d
+
+def train_step(model, dataloader, optimizer, discriminator, optimizer_d, device, beta_kl_loss, adv_weight=0.01):
     model.train()
+    discriminator.train()
+    bce_loss = torch.nn.BCEWithLogitsLoss()
     total_loss, total_recon, total_kl, count = 0, 0, 0, 0
 
     with tqdm(total=len(dataloader.dataset), desc="Training", unit='img') as pbar:
         for batch in dataloader:
             images = batch["image"].to(device)          # encoder input
             targets = batch["image_target"].to(device)  # what the decoder must reconstruct
+
+            #VAE forward pass
             optimizer.zero_grad()
             recon, mu, logvar, mean_z, logvar_z = model(images)
             loss_dict = vae_loss(
@@ -89,8 +110,20 @@ def train_step(model, dataloader, optimizer, device, beta_kl_loss):
                 kl_beta=beta_kl_loss,
                 kl_beta_z=0.001,
             )
-            loss_dict["total"].backward()
+            fake_logits_for_vae = discriminator(recon) #No .detach() here, we want gradients to flow back to the VAE
+            loss_adv = bce_loss(fake_logits_for_vae, torch.ones_like(fake_logits_for_vae))
+            total_loss_vae = loss_dict["total"] + adv_weight * loss_adv
+
+            total_loss_vae.backward()
             optimizer.step()
+
+            #Discriminator forward pass
+            optimizer_d.zero_grad()   # Reset gradients for discriminator
+            real_logits = discriminator(targets)
+            fake_logits = discriminator(recon.detach()) #detach to avoid backprop through the VAE
+            loss_d = bce_loss(real_logits, torch.ones_like(real_logits)) + bce_loss(fake_logits, torch.zeros_like(fake_logits))
+            loss_d.backward()
+            optimizer_d.step()
 
             total_loss += loss_dict["total"].item()
             total_recon += loss_dict["reconstruction"].item()
@@ -240,13 +273,13 @@ def train_vae(args):
     setup_wandb(args)
 
     trainset, valset, trainloader, valloader = get_dataloaders(args)
-    model, optimizer = setup_model_and_optimizer(args)
+    model, optimizer, discriminator, optimizer_d = setup_model_and_optimizer(args)
 
     best_val_loss = float('inf')
     patience_counter = 0
 
     for epoch in range(args.epochs):
-        train_losses = train_step(model, trainloader, optimizer, device, args.kl_beta)
+        train_losses = train_step(model, trainloader, optimizer, discriminator, optimizer_d, device, args.kl_beta, args.adv_weight)
         val_losses = validation_step(model, valloader, device, args.kl_beta)
 
         depth_msg = f", PSNR(D)={val_losses[5]:.2f}, SSIM(D)={val_losses[6]:.3f}" if val_losses[5] is not None else ""
