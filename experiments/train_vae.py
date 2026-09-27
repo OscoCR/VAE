@@ -62,6 +62,24 @@ def get_dataloaders(args):
 
     return trainset, valset, trainloader, valloader
 
+def remap_decoder_checkpoint(state_dict):
+    # Old VAE_Decoder was itself an nn.Sequential ("decoder.0...decoder.25").
+    # It's now an nn.Module with the same layers nested under self.blocks
+    # ("decoder.blocks.0...decoder.blocks.23"), plus the new
+    # variational_last_layer replacing the old final conv (decoder.25, no
+    # equivalent anymore -- dropped here, left for the caller's strict=False
+    # to random-init the new variational_last_layer weights instead).
+    remapped = {}
+    for key, value in state_dict.items():
+        if key.startswith("decoder.") and not key.startswith("decoder.blocks."):
+            suffix = key[len("decoder."):]
+            index_str = suffix.split(".", 1)[0]
+            if index_str.isdigit() and int(index_str) <= 23:
+                remapped[f"decoder.blocks.{suffix}"] = value
+            continue
+        remapped[key] = value
+    return remapped
+
 def setup_model_and_optimizer(args):
     model = VAE(
         in_channels=getattr(args, 'in_channels', 3),
@@ -71,6 +89,7 @@ def setup_model_and_optimizer(args):
     pretrained_path = getattr(args, 'pretrained_vae_checkpoint', None)
     if pretrained_path:
         checkpoint = torch.load(pretrained_path, map_location=args.device)
+        checkpoint = remap_decoder_checkpoint(checkpoint)
         result = model.load_state_dict(checkpoint, strict=False)
         print(f"Loaded pretrained VAE from {pretrained_path}")
         print(f"Missing keys (new, random-init): {result.missing_keys}")
