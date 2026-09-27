@@ -15,8 +15,8 @@ class VAE(nn.Module):
         # The encoder expects noise with shape (Batch_Size, 4, Height/8, Width/8).
         noise = torch.randn((batch_size, 4, height // 8, width // 8), device=x.device)
         latent, mean, logvar = self.encoder(x, noise)
-        reconstruction = self.decoder(latent)
-        return reconstruction, mean, logvar
+        reconstruction, mean_z, logvar_z = self.decoder(latent)
+        return reconstruction, mean, logvar,mean_z, logvar_z
 
     def sample_reconstructions(self, x, n_samples=10):
         self.eval()
@@ -27,7 +27,7 @@ class VAE(nn.Module):
             for _ in range(n_samples):
                 noise = torch.randn((batch_size, 4, height // 8, width // 8), device=x.device)
                 latent, mean, logvar = self.encoder(x, noise)
-                recon = self.decoder(latent)
+                recon, mean_z, logvar_z = self.decoder(latent)
                 reconstructions.append(recon)
 
             # Shape: [n_samples, batch_size, C, H, W]

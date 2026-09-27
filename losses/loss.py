@@ -112,11 +112,14 @@ def kl_divergence_loss(mean, logvar, reduction='sum'):
 
 
 def vae_loss(
+    mean_z: torch.Tensor,
+    logvar_z: torch.Tensor,
     reconstructed: torch.Tensor,
     original: torch.Tensor,
     mean: torch.Tensor,
     logvar: torch.Tensor,
     kl_beta: float = 0.1,
+    kl_beta_z: float = 0.1,
     reduction: str = 'sum',
 ) -> Dict[str, torch.Tensor]:
     """
@@ -128,6 +131,7 @@ def vae_loss(
         mean (Tensor): Latent means [B, latent_dim]
         logvar (Tensor): Latent log-variances [B, latent_dim]
         kl_beta (float): Scaling factor for KL divergence.
+        kl_beta_z (float): Scaling factor for KL divergence of the second latent space.
         reduction (str): Reduction method: 'sum' or 'mean'.
         perceptual_loss (bool): Whether to include perceptual loss.
         model_perceptual (nn.Module, optional): DINO model for perceptual loss.
@@ -139,6 +143,7 @@ def vae_loss(
             - 'total'
             - 'reconstruction'
             - 'kl'
+            - 'kl_z'
             - 'perceptual' (only if enabled)
     """
     batch_size = reconstructed.size(0)
@@ -146,13 +151,15 @@ def vae_loss(
     # Core losses
     recon_loss = mse_loss(reconstructed, original, reduction=reduction)
     kl_loss = kl_divergence_loss(mean, logvar, reduction=reduction)
-    total_loss = recon_loss + kl_beta * kl_loss
+    kl_loss_z = kl_divergence_loss(mean_z, logvar_z, reduction=reduction)
+    total_loss = recon_loss + kl_beta * kl_loss + kl_beta_z * kl_loss_z
 
     # Normalize all by batch size
     loss_dict = {
         "total": total_loss / batch_size,
         "reconstruction": recon_loss / batch_size,
         "kl": kl_loss / batch_size,
+        "kl_z": kl_loss_z / batch_size,
     }
 
     return loss_dict

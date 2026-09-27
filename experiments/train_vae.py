@@ -78,9 +78,17 @@ def train_step(model, dataloader, optimizer, device, beta_kl_loss):
             images = batch["image"].to(device)          # encoder input
             targets = batch["image_target"].to(device)  # what the decoder must reconstruct
             optimizer.zero_grad()
-            recon, mu, logvar = model(images)
-
-            loss_dict = vae_loss(recon, targets, mu, logvar, kl_beta=beta_kl_loss)
+            recon, mu, logvar, mean_z, logvar_z = model(images)
+            loss_dict = vae_loss(
+                reconstructed=recon,
+                original=targets,
+                mean=mu,
+                logvar=logvar,
+                mean_z=mean_z,
+                logvar_z=logvar_z,
+                kl_beta=beta_kl_loss,
+                kl_beta_z=0.001,
+            )
             loss_dict["total"].backward()
             optimizer.step()
 
@@ -96,7 +104,7 @@ def train_step(model, dataloader, optimizer, device, beta_kl_loss):
 
 def validation_step(model, dataloader, device, kl_beta):
     model.eval()
-    total_loss, total_recon, total_kl, count = 0, 0, 0, 0
+    total_loss, total_recon, total_kl, total_kl_z, count = 0, 0, 0, 0, 0
     total_psnr, total_ssim = 0, 0
     total_psnr_depth, total_ssim_depth = 0, 0
     has_depth = False
@@ -105,12 +113,21 @@ def validation_step(model, dataloader, device, kl_beta):
         for batch in dataloader:
             images = batch["image"].to(device)          # encoder input
             targets = batch["image_target"].to(device)  # what the decoder must reconstruct
-            recon, mu, logvar = model(images)
-
-            loss_dict = vae_loss(recon, targets, mu, logvar, kl_beta=kl_beta)
+            recon, mu, logvar, mean_z, logvar_z = model(images)
+            loss_dict = vae_loss(
+                reconstructed=recon,
+                original=targets,
+                mean=mu,
+                logvar=logvar,
+                mean_z=mean_z,
+                logvar_z=logvar_z,
+                kl_beta=kl_beta,
+                kl_beta_z=0.001,
+            )
             total_loss += loss_dict["total"].item()
             total_recon += loss_dict["reconstruction"].item()
             total_kl += loss_dict["kl"].item()
+            total_kl_z += loss_dict["kl_z"].item()
 
             # RGB and Depth are different modalities -- never mix them into one
             # PSNR/SSIM number (same reasoning as generate_test_inferences.py).
@@ -135,13 +152,14 @@ def validation_step(model, dataloader, device, kl_beta):
         total_ssim / count,
         total_psnr_depth / count if has_depth else None,
         total_ssim_depth / count if has_depth else None,
+        total_kl_z / count,
     )
 
 def reconstruct_sample(model, dataset, device):
     sample_img = dataset[0]['image']
     sample_img = torch.tensor(sample_img).unsqueeze(0).to(device)
     with torch.no_grad():
-        recon, _, _ = model(sample_img)
+        recon, _, _, _, _ = model(sample_img)
         recon = recon.squeeze(0).cpu().numpy()
         recon = np.transpose(recon, (1, 2, 0)) * 255
     return recon.astype(np.uint8)
@@ -154,7 +172,7 @@ def reconstruct_grid(model, dataset, device, n_samples=8):
     targets = torch.tensor(np.stack([s["image_target"] for s in samples])).to(device)  # what recon should match
 
     with torch.no_grad():
-        recon, _, _ = model(imgs)
+        recon, _, _, _, _ = model(imgs)
 
     # RGB and Depth are different modalities -- grid them separately so Depth
     # isn't silently read as an alpha channel on top of RGB (same issue as
@@ -175,7 +193,7 @@ def reconstruct_grid(model, dataset, device, n_samples=8):
 
 def log_metrics_to_wandb(epoch, train_losses, val_losses, recon_grid, recon_grid_depth=None):
     train_loss, train_recon, train_kl = train_losses
-    val_loss, val_recon, val_kl, val_psnr, val_ssim, val_psnr_depth, val_ssim_depth = val_losses
+    val_loss, val_recon, val_kl, val_psnr, val_ssim, val_psnr_depth, val_ssim_depth, val_kl_z = val_losses
 
     log_dict = {
         "epoch": epoch,
@@ -188,6 +206,7 @@ def log_metrics_to_wandb(epoch, train_losses, val_losses, recon_grid, recon_grid
         "val/kl_loss": val_kl,
         "val/psnr": val_psnr,
         "val/ssim": val_ssim,
+        "val/kl_z_loss": val_kl_z,
     }
     if recon_grid_depth is not None:
         log_dict["Sample Reconstructions (Depth)"] = wandb.Image(recon_grid_depth, caption=f"Epoch {epoch}")

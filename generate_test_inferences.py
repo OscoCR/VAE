@@ -110,7 +110,7 @@ def generate_inferences(args):
 
             # Forward pass depends on what the model returns
             if args.model == "vae":
-                recon, _, _ = model(images)
+                recon, _, _, _, _,= model(images)
             elif args.model == "vqvae":
                 recon, _, _, _ = model(images)
             elif args.model == "dualvae":

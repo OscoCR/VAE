@@ -1,13 +1,16 @@
 import torch 
 from torch import nn
-from torch.nn import functional as F 
+from torch.nn import functional as F
+
+from models.modules.variational_layer import VariationalLastLayer 
 
 from .attention import AttentionBlock
 from .residual import ResidualBlock
 
-class VAE_Decoder(nn.Sequential):
+class VAE_Decoder(nn.Module):
     def __init__(self, out_channels=3):
-        super().__init__(
+        super().__init__()
+        self.blocks = nn.Sequential(
             # (Batch_Size, 4, Height / 8, Width / 8) -> (Batch_Size, 4, Height / 8, Width / 8)
             nn.Conv2d(4, 4, kernel_size=1, padding=0),
             # (Batch_Size, 4, Height / 8, Width / 8) -> (Batch_Size, 512, Height / 8, Width / 8)
@@ -66,23 +69,17 @@ class VAE_Decoder(nn.Sequential):
             nn.GroupNorm(32, 128), 
             
             # (Batch_Size, 128, Height, Width) -> (Batch_Size, 128, Height, Width)
-            nn.SiLU(), 
-            
-            # (Batch_Size, 128, Height, Width) -> (Batch_Size, out_channels, Height, Width)
-            nn.Conv2d(128, out_channels, kernel_size=3, padding=1),
+            nn.SiLU(),
         )
-
+        self.variational_last_layer = VariationalLastLayer(128, out_channels)
     def forward(self, x):
         # x: (Batch_Size, 4, Height / 8, Width / 8)
 
         # Remove the scaling added by the Encoder.
         x /= 0.18215
-
-        for module in self:
-            x = module(x)
-
-        # (Batch_Size, out_channels, Height, Width)
-        return x
+        x = self.blocks(x)
+        z, mean, logvar = self.variational_last_layer(x)
+        return z, mean, logvar
 
 class VQVAE_Decoder(nn.Sequential):
     def __init__(self, latent_dim=128):
