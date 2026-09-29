@@ -74,9 +74,13 @@ def remap_decoder_checkpoint(state_dict):
         if key.startswith("decoder.") and not key.startswith("decoder.blocks."):
             suffix = key[len("decoder."):]
             index_str = suffix.split(".", 1)[0]
-            if index_str.isdigit() and int(index_str) <= 23:
-                remapped[f"decoder.blocks.{suffix}"] = value
-            continue
+            if index_str.isdigit():
+                if int(index_str) <= 23:
+                    remapped[f"decoder.blocks.{suffix}"] = value
+                continue  # old numeric index handled (remapped, or dropped if it was the old final conv)
+            # non-numeric suffix under "decoder." that isn't "decoder.blocks." --
+            # e.g. decoder.variational_last_layer.* from a checkpoint that's
+            # already in the new architecture -- pass through unchanged below
         remapped[key] = value
     return remapped
 

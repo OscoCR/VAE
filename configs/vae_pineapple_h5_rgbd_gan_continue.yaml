@@ -1,0 +1,48 @@
+# -------------------- Training Hyperparameters --------------------
+batch_size: 8
+lr: 0.0001
+epochs: 30
+patience: 10
+
+# -------------------- Checkpoints & Output --------------------
+checkpoints: "/work/oortega/checkpoints/vae_rgbd_gan_continued/"
+
+# -------------------- Fine-tuning --------------------
+# Continues from the GAN fine-tuning run itself (last.pt, epoch 49), not the
+# original pre-GAN checkpoint -- that run hadn't plateaued (best.pt == last.pt,
+# patience never triggered), so it's worth training further from where it left off.
+pretrained_vae_checkpoint: "/work/oortega/checkpoints/vae_rgbd_gan/betaKL@0.001/last.pt"
+adv_weight: 0.01
+
+# -------------------- Dataset & Splits --------------------
+dataset_path: "/data/oortega/pineapple_960x544.h5"
+train_ratio: 0.8
+val_ratio: 0.2
+resize_img: 256
+augment: False
+augment_ratio: 2
+use_test_split: True
+create_new_split: True
+num_folds: 5
+seed: 42
+
+# -------------------- VAE Loss --------------------
+kl_beta: 0.001
+
+# -------------------- Device / Architecture --------------------
+device: "cuda"
+in_channels: 4
+out_channels: 4
+
+# -------------------- Reproducibility --------------------
+deterministic: True
+cudnn_benchmark: False
+
+# -------------------- DataLoader --------------------
+num_workers: 4
+pin_memory: True
+persistent_workers: True
+
+# -------------------- WandB --------------------
+wandb_project: "dual_vae"
+wandb_entity: "osco-itcr"
