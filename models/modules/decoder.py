@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from models.modules.variational_layer import VariationalLastLayer 
+from .variational_layer import VariationalLastLayer
 
 from .attention import AttentionBlock
 from .residual import ResidualBlock
