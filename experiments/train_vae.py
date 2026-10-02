@@ -109,7 +109,7 @@ def setup_model_and_optimizer(args):
 
     return model, optimizer, discriminator, optimizer_d
 
-def train_step(model, dataloader, optimizer, discriminator, optimizer_d, device, beta_kl_loss, adv_weight=0.01):
+def train_step(model, dataloader, optimizer, discriminator, optimizer_d, device, beta_kl_loss, adv_weight=0.01, kl_beta_z=0.001):
     model.train()
     discriminator.train()
     bce_loss = torch.nn.BCEWithLogitsLoss()
@@ -131,7 +131,7 @@ def train_step(model, dataloader, optimizer, discriminator, optimizer_d, device,
                 mean_z=mean_z,
                 logvar_z=logvar_z,
                 kl_beta=beta_kl_loss,
-                kl_beta_z=0.001,
+                kl_beta_z=kl_beta_z,
             )
             fake_logits_for_vae = discriminator(recon) #No .detach() here, we want gradients to flow back to the VAE
             loss_adv = bce_loss(fake_logits_for_vae, torch.ones_like(fake_logits_for_vae))
@@ -158,7 +158,7 @@ def train_step(model, dataloader, optimizer, discriminator, optimizer_d, device,
 
     return total_loss / count, total_recon / count, total_kl / count
 
-def validation_step(model, dataloader, device, kl_beta):
+def validation_step(model, dataloader, device, kl_beta, kl_beta_z=0.001):
     model.eval()
     total_loss, total_recon, total_kl, total_kl_z, count = 0, 0, 0, 0, 0
     total_psnr, total_ssim = 0, 0
@@ -178,7 +178,7 @@ def validation_step(model, dataloader, device, kl_beta):
                 mean_z=mean_z,
                 logvar_z=logvar_z,
                 kl_beta=kl_beta,
-                kl_beta_z=0.001,
+                kl_beta_z=kl_beta_z,
             )
             total_loss += loss_dict["total"].item()
             total_recon += loss_dict["reconstruction"].item()
@@ -302,8 +302,8 @@ def train_vae(args):
     patience_counter = 0
 
     for epoch in range(args.epochs):
-        train_losses = train_step(model, trainloader, optimizer, discriminator, optimizer_d, device, args.kl_beta, args.adv_weight)
-        val_losses = validation_step(model, valloader, device, args.kl_beta)
+        train_losses = train_step(model, trainloader, optimizer, discriminator, optimizer_d, device, args.kl_beta, args.adv_weight, getattr(args, 'kl_beta_z', 0.001))
+        val_losses = validation_step(model, valloader, device, args.kl_beta, getattr(args, 'kl_beta_z', 0.001))
 
         depth_msg = f", PSNR(D)={val_losses[5]:.2f}, SSIM(D)={val_losses[6]:.3f}" if val_losses[5] is not None else ""
         print(
