@@ -26,7 +26,13 @@ def get_dataloaders(args):
         crop_size = getattr(args, 'resize_img', 256)
         in_channels = getattr(args, 'in_channels', 3)
         out_channels = getattr(args, 'out_channels', 3)
-        trainset = PineappleH5Dataset(args.dataset_path, split='train', crop_size=crop_size, augment=False, seed=args.seed, in_channels=in_channels, out_channels=out_channels)
+        trainset = PineappleH5Dataset(
+            args.dataset_path, split='train', crop_size=crop_size,
+            augment=getattr(args, 'augment', False), seed=args.seed,
+            in_channels=in_channels, out_channels=out_channels,
+            hard_indices_path=getattr(args, 'hard_indices_path', None),
+            hard_repeat=getattr(args, 'hard_repeat', 1),
+        )
         valset = PineappleH5Dataset(args.dataset_path, split='val', crop_size=crop_size, augment=False, seed=args.seed, in_channels=in_channels, out_channels=out_channels)
     else:
         trainset = PineappleDataset(

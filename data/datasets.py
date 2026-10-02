@@ -161,10 +161,12 @@ class PineappleH5Dataset(Dataset):
     VAE that uses depth as an extra input cue but only reconstructs RGB.
     """
 
-    def __init__(self, h5_path, split='train', crop_size=256, augment=False, seed=42, in_channels=3, out_channels=3):
+    def __init__(self, h5_path, split='train', crop_size=256, augment=False, seed=42, in_channels=3, out_channels=3,
+                 hard_indices_path=None, hard_repeat=1):
         assert split in ['train', 'val', 'test'], "split must be 'train', 'val', or 'test'"
         assert in_channels in (3, 4), "in_channels must be 3 (RGB) or 4 (RGB+Depth)"
         assert out_channels in (3, 4), "out_channels must be 3 (RGB) or 4 (RGB+Depth)"
+        assert hard_repeat >= 1, "hard_repeat must be >= 1"
 
         self.h5_path = h5_path
         self.split = split
@@ -179,13 +181,26 @@ class PineappleH5Dataset(Dataset):
             split_col = np.char.decode(f['split'][:])
             self.indices = np.where(split_col == split)[0]
 
+        # Positions into self.indices, one entry per sample served per epoch. "Hard"
+        # positions (listed in hard_indices_path) appear hard_repeat times, each
+        # access drawing a fresh random crop/flip/rotation. Only meaningful for train.
+        self.sample_map = list(range(len(self.indices)))
+        if hard_indices_path is not None and hard_repeat > 1:
+            assert split == 'train', "hard-image oversampling only applies to the train split"
+            with open(hard_indices_path) as f:
+                hard = {int(line) for line in f if line.strip()}
+            self.sample_map = [
+                pos for pos in range(len(self.indices))
+                for _ in range(hard_repeat if pos in hard else 1)
+            ]
+
     def _file(self):
         if self._h5 is None:
             self._h5 = h5py.File(self.h5_path, 'r')
         return self._h5
 
     def __len__(self):
-        return len(self.indices)
+        return len(self.sample_map)
 
     def _crop_box(self, h, w):
         c = self.crop_size
@@ -234,6 +249,7 @@ class PineappleH5Dataset(Dataset):
         return image_in, image_target
 
     def __getitem__(self, idx):
-        real_idx = int(self.indices[idx])
+        pos = self.sample_map[idx]
+        real_idx = int(self.indices[pos])
         image_in, image_target = self.transform_image(real_idx)
-        return {'image': image_in, 'image_target': image_target, 'idx': idx}
+        return {'image': image_in, 'image_target': image_target, 'idx': pos}
